@@ -84,7 +84,7 @@ def train_and_save_best_model(df: pd.DataFrame, target: str, model_type: str,
 
             model, exp, clustered_data = train_clustering_model(
                 training_data,
-                model_name=selected_algorithm,  # Pass the selected algorithm as model_name
+                model_name=selected_algorithm,
                 num_clusters=num_clusters
             )
 
@@ -149,18 +149,18 @@ def train_and_save_best_model(df: pd.DataFrame, target: str, model_type: str,
             st.write("### Regression Performance Charts")
             try:
                 # Residuals
-                fig_residuals = plot_model_regression(final_model, plot='residuals', display_format='matplotlib')
+                fig_residuals = plot_model_regression(final_model, plot='residuals', display_format='streamlit')
                 st.pyplot(fig_residuals)
                 plt.clf()
         
                 # Prediction error
-                fig_pred_error = plot_model_regression(final_model, plot='prediction_error', display_format='matplotlib')
+                fig_pred_error = plot_model_regression(final_model, plot='prediction_error', display_format='streamlit')
                 st.pyplot(fig_pred_error)
                 plt.clf()
         
                 # Feature importance
                 st.subheader("Feature Importance")
-                fig_feat_imp = plot_model_regression(final_model, plot='feature', display_format='matplotlib')
+                fig_feat_imp = plot_model_regression(final_model, plot='feature', display_format='streamlit')
                 st.pyplot(fig_feat_imp)
                 plt.clf()
         
@@ -204,7 +204,6 @@ def train_and_save_best_model(df: pd.DataFrame, target: str, model_type: str,
     except Exception as e:
         st.warning(f"Error during training or visualization: {e}")
 
-
 # Sidebar
 st.sidebar.header("Upload or Load Dataset")
 uploaded_file = st.sidebar.file_uploader("Upload Dataset (CSV or Excel)", type=["csv", "xlsx", "xls"])
@@ -213,7 +212,7 @@ load_from_db = st.sidebar.checkbox("Load most recent dataset from database")
 if uploaded_file:
     df = data_processing.load_data(uploaded_file)
     default_table_name = uploaded_file.name.replace('.', '_').lower()
-    df = data_processing.clean_data(df)  # clean antes de salvar
+    df = data_processing.clean_data(df)  # clean before saving
     st.session_state['data'] = df
     st.session_state['table_name'] = save_uploaded_dataset(df, default_table_name)
 
@@ -293,4 +292,4 @@ if data is not None:
                     st.write(f"**Predicted Cluster:** {preds.get('predicted_cluster')}")
 
 else:
-    st.info("Please upload a dataset or load one from the database to get started.")
+    st.info("Please upload a dataset or load one from the database to get started.")    

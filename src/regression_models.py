@@ -1,4 +1,3 @@
-import streamlit as st
 import pandas as pd
 import numpy as np
 from sklearn.pipeline import Pipeline, make_pipeline
@@ -14,13 +13,13 @@ from sklearn.ensemble import StackingRegressor
 from lightgbm import LGBMRegressor
 from scipy.stats import randint, uniform
 from src.data_processing import remove_outliers_iqr
+import streamlit as st
 
 try:
     from catboost import CatBoostRegressor
     CATBOOST_AVAILABLE = True
 except ImportError:
     CATBOOST_AVAILABLE = False
-
 
 def detect_text_columns(df: pd.DataFrame, exclude_cols: list = []):
     text_cols = []
@@ -31,7 +30,6 @@ def detect_text_columns(df: pd.DataFrame, exclude_cols: list = []):
         if avg_len > 20:
             text_cols.append(col)
     return text_cols
-
 
 def train_regression_models(
     df: pd.DataFrame,
