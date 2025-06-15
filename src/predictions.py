@@ -1,14 +1,6 @@
 import streamlit as st
 import pandas as pd
-from typing import Dict, List
-
-import streamlit as st
-import pandas as pd
-from typing import List
-
-import streamlit as st
-import pandas as pd
-from typing import List
+from typing import List, Dict, Any
 
 def input_new_data_dynamic(data: pd.DataFrame, selected_features: List[str], form_key: str) -> pd.DataFrame:
     """
@@ -44,17 +36,16 @@ def input_new_data_dynamic(data: pd.DataFrame, selected_features: List[str], for
         st.dataframe(df_new)
         return df_new
 
-    return pd.DataFrame()  # empty when not submitted
+    return pd.DataFrame()  # Return empty DataFrame when not submitted
 
 
-def predict_with_model(model, new_data: pd.DataFrame, model_type: str):
+def predict_with_model(model: Any, new_data: pd.DataFrame, model_type: str) -> Dict[str, Any]:
     """
     Return prediction results with confidence or probabilities where appropriate.
     """
-
     if new_data.empty:
         st.warning("No input data provided for prediction.")
-        return None
+        return {}
 
     try:
         # Clean new_data numeric columns before prediction
@@ -66,21 +57,21 @@ def predict_with_model(model, new_data: pd.DataFrame, model_type: str):
         if model_type == 'classification':
             from pycaret.classification import predict_model
             pred_df = predict_model(model, data=new_data_cleaned)
-            # [rest of your code unchanged...]
+            return pred_df
 
         elif model_type == 'regression':
             from pycaret.regression import predict_model
             pred_df = predict_model(model, data=new_data_cleaned)
-            # [rest of your code unchanged...]
+            return pred_df
 
         elif model_type == 'clustering':
-            pred_cluster = model.predict(new_data_cleaned)[0]
+            pred_cluster = model.predict(new_data_cleaned)
             return {"predicted_cluster": pred_cluster}
 
         else:
             st.error(f"Unsupported model type {model_type} for prediction.")
-            return None
+            return {}
 
     except Exception as e:
         st.error(f"Prediction error: {e}")
-        return None
+        return {}

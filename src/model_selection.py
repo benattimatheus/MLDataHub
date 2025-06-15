@@ -12,17 +12,6 @@ def setup_pycaret(
 ) -> Tuple[Optional[Any], Optional[Any]]:
     """
     Setup and run a PyCaret experiment.
-
-    Args:
-        data: Input DataFrame.
-        target: Target column name (ignored for clustering).
-        model_type: One of 'classification', 'regression', 'clustering'.
-        categorical_features: Optional list of categorical features.
-        numeric_features: Optional list of numeric features.
-        session_id: Random seed.
-
-    Returns:
-        Tuple (best_model, experiment_object), or (None, None) on error.
     """
     try:
         setup_kwargs = {
@@ -30,7 +19,7 @@ def setup_pycaret(
             'session_id': session_id,
             'verbose': False,
             'html': False,
-            'use_gpu': False
+            'use_gpu': False,
         }
 
         if model_type in ['classification', 'regression']:
@@ -47,23 +36,23 @@ def setup_pycaret(
             from pycaret.classification import setup, compare_models
             exp = setup(**setup_kwargs)
             best_model = compare_models()
+            return best_model, exp
 
         elif model_type == 'regression':
             from pycaret.regression import setup, compare_models
             exp = setup(**setup_kwargs)
-            best_model = compare_models()
+            best_model = compare_models(exclude=['dummy'])
+            return best_model, exp
 
         elif model_type == 'clustering':
             from pycaret.clustering import setup, create_model
             exp = setup(**setup_kwargs)
             best_model = create_model('kmeans')
+            return best_model, exp
 
         else:
             st.error("Invalid model type. Choose from 'classification', 'regression', or 'clustering'.")
             return None, None
-
-        st.success(f"Best {model_type} model: {best_model}")
-        return best_model, exp
 
     except Exception as e:
         st.error(f"Error during PyCaret setup or training: {str(e)}")
