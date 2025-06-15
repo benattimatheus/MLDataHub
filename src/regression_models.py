@@ -84,7 +84,7 @@ def train_regression_models(
     missing_columns = [col for col in required_columns if col not in df.columns]
     if missing_columns:
         st.error(f"Missing columns: {missing_columns}")
-        return None, None
+        return None
 
     X = df.drop(columns=[target])
     y = df[target]
@@ -217,7 +217,18 @@ def train_regression_models(
 
     melhor_resultado = max(resultados, key=lambda x: x['R2 (CV média)'])
     melhor_pipeline = melhor_resultado['pipeline']
+    nome_modelo = melhor_resultado['Modelo']
+    st.success(f"Melhor modelo: {nome_modelo} com R² médio de {melhor_resultado['R2 (CV média)']:.4f}")
 
-    st.success(f"Melhor modelo: {melhor_resultado['Modelo']} com R² médio de {melhor_resultado['R2 (CV média)']:.4f}")
+    # Previsões no conjunto original (pós-tratamento)
+    y_pred = melhor_pipeline.predict(X)
 
-    return melhor_pipeline, resultado_df
+    # Retornar tudo que for útil para análise
+    return {
+        'pipeline': melhor_pipeline,
+        'X': X,
+        'y': y,
+        'y_pred': y_pred,
+        'model_name': nome_modelo,
+        'result_df': resultado_df
+    }

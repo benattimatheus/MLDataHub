@@ -67,14 +67,19 @@ def train_and_save_best_model(df: pd.DataFrame, target: str, model_type: str,
 
     model = None
     exp = None
+    results_df = None
 
     try:
         if model_type == 'classification':
             model, exp = train_classification_model(training_data, target)
             results_df = pull_classification()
         elif model_type == 'regression':
-            model, results_df = train_regression_models(training_data, target)
-            exp = None
+            regression_result = train_regression_models(training_data, target)
+            if regression_result:
+                model = regression_result['pipeline']
+                results_df = regression_result['result_df']
+                st.session_state['regression_result'] = regression_result
+                exp = None
         elif model_type == 'clustering':
             st.write("### Determine Optimal Number of Clusters")
             determine_optimal_clusters(training_data)
@@ -121,51 +126,33 @@ def train_and_save_best_model(df: pd.DataFrame, target: str, model_type: str,
 
         elif model_type == 'regression':
             st.write("### Improving Regression Model...")
-            final_model = model
-            if final_model.__class__.__name__ == 'DummyRegressor':
-                st.warning("Best model is DummyRegressor (baseline). No further plots available.")
-                return
+            regression_result = st.session_state.get('regression_result')
         
-            metric_name = 'R2'
-            metric_value = None
-            if exp is not None:
-                try:
-                    df_results = exp.pull()
-                    if 'R2' in df_results.columns:
-                        metric_value = df_results.loc[0, 'R2']
-                except Exception:
-                    metric_value = None
+            if regression_result:
+                y = regression_result['y']
+                y_pred = regression_result['y_pred']
+                model_name = regression_result['model_name']
         
-            st.session_state['r2_score'] = metric_value
+                metric_name = 'R2'
+                metric_value = ((pd.Series(y_pred) - pd.Series(y))**2).mean()
+                st.session_state['r2_score'] = metric_value
         
-            for m in ['RMSE', 'MAE', 'MSE']:
-                if exp is not None:
-                    try:
-                        if m in df_results.columns:
-                            additional_metrics[m] = df_results.loc[0, m]
-                    except Exception:
-                        pass
-                    
-            st.write("### Regression Performance Charts")
-            try:
-                # Residuals
-                fig_residuals = plot_model_regression(final_model, plot='residuals', display_format='streamlit')
-                st.pyplot(fig_residuals)
-                plt.clf()
+                st.write("### Regression Performance Charts")
         
-                # Prediction error
-                fig_pred_error = plot_model_regression(final_model, plot='prediction_error', display_format='streamlit')
-                st.pyplot(fig_pred_error)
-                plt.clf()
+                # Scatter chart: Real vs Predicted
+                st.write("#### Real vs. Predicted")
+                chart_data = pd.DataFrame({'Real': y, 'Predicted': y_pred})
+                st.scatter_chart(chart_data)
         
-                # Feature importance
-                st.subheader("Feature Importance")
-                fig_feat_imp = plot_model_regression(final_model, plot='feature', display_format='streamlit')
-                st.pyplot(fig_feat_imp)
-                plt.clf()
+                # Residuals Plot
+                st.write("#### Residuals Plot")
+                residuals = y - y_pred
+                residuals_data = pd.DataFrame({'Predicted': y_pred, 'Residuals': residuals})
+                st.line_chart(residuals_data.set_index('Predicted'))
         
-            except Exception as e:
-                st.warning(f"Could not render regression plots: {e}")
+                # Histogram of Residuals
+                st.write("#### Histogram of Residuals")
+                st.bar_chart(pd.Series(residuals).value_counts())
         
         elif model_type == 'clustering':
             st.write("### Clustering Performance Charts")
