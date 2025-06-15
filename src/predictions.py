@@ -57,12 +57,38 @@ def predict_with_model(model: Any, new_data: pd.DataFrame, model_type: str) -> D
         if model_type == 'classification':
             from pycaret.classification import predict_model
             pred_df = predict_model(model, data=new_data_cleaned)
-            return pred_df
-
+        
+            # Verifica quais colunas existem
+            if 'Label' in pred_df.columns and 'Score' in pred_df.columns:
+                return {
+                    'predicted_class': pred_df['Label'],
+                    'probability': pred_df['Score']
+                }
+            elif 'prediction_label' in pred_df.columns and 'prediction_score' in pred_df.columns:
+                return {
+                    'predicted_class': pred_df['prediction_label'],
+                    'probability': pred_df['prediction_score']
+                }
+            else:
+                st.error("Nenhuma das colunas esperadas ('Label', 'Score' ou 'prediction_label', 'prediction_score') foi encontrada nos resultados.")
+                st.dataframe(pred_df)  # Mostra o DataFrame completo para depuração
+                return {}
+        
         elif model_type == 'regression':
             from pycaret.regression import predict_model
             pred_df = predict_model(model, data=new_data_cleaned)
-            return pred_df
+            st.write("Prediction DataFrame:", pred_df)  # Debugging line to check the structure
+
+            # Check the actual column names in the returned DataFrame
+            st.write("Columns in prediction DataFrame:", pred_df.columns.tolist())  # List the columns
+
+            if 'Label' in pred_df.columns:
+                return {
+                    'predicted_value': pred_df['Label']  # Access the predicted value
+                }
+            else:
+                st.error("Expected column 'Label' not found in regression results.")
+                return {}
 
         elif model_type == 'clustering':
             pred_cluster = model.predict(new_data_cleaned)
@@ -75,3 +101,17 @@ def predict_with_model(model: Any, new_data: pd.DataFrame, model_type: str) -> D
     except Exception as e:
         st.error(f"Prediction error: {e}")
         return {}
+
+def predict_classification(model, input_data: pd.DataFrame):
+    """
+    Make predictions using the trained classification model.
+
+    Args:
+        model: Trained classification model.
+        input_data: DataFrame containing input features for prediction.
+
+    Returns:
+        Predictions as a Series.
+    """
+    predictions = model.predict(input_data)
+    return predictions

@@ -259,17 +259,14 @@ if data is not None:
         st.header("Predict on New Data")
         input_df = predictions.input_new_data_dynamic(data, selected_features, form_key="new_data_form")
         if not input_df.empty:
-            preds = predictions.predict_with_model(model, input_df, model_type)
+            preds = predictions.predict_with_model(model, input_df, model_type)  # Call the updated prediction function
             if preds:
                 st.subheader("Prediction Results")
                 if model_type == 'classification':
-                    st.write(f"**Predicted Class:** {preds.get('predicted_class')}")
-                    conf = preds.get('probability')
-                    if conf is not None:
-                        try:
-                            st.write(f"**Confidence:** {float(conf) * 100:.2f}%")
-                        except Exception:
-                            st.write(f"**Confidence:** {conf}")
+                    predicted_class = preds['predicted_class'].values[0]  # Access the predicted class
+                    confidence = preds['probability'].values[0]  # Access the probability
+                    st.write(f"**Predicted Class:** {predicted_class}")  # Display the predicted class
+                    st.write(f"**Confidence:** {confidence * 100:.2f}%")  # Display the confidence
                 elif model_type == 'regression':
                     st.write(f"**Predicted Value:** {preds.get('predicted_value'):.4f}")
                     r2 = st.session_state.get('r2_score')
@@ -277,6 +274,7 @@ if data is not None:
                         st.write(f"**R2 Score:** {r2:.4f}")
                 elif model_type == 'clustering':
                     st.write(f"**Predicted Cluster:** {preds.get('predicted_cluster')}")
+
 
 else:
     st.info("Please upload a dataset or load one from the database to get started.")    
