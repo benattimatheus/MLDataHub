@@ -1,18 +1,16 @@
-# [sem alterações nas importações]
 import streamlit as st
 import pandas as pd
 from datetime import datetime
 from src import data_processing, eda, predictions, database
 import matplotlib.pyplot as plt
-import seaborn as sns
-import numpy as np
-from sklearn.decomposition import PCA
-from pycaret.classification import pull as pull_classification
+
+from pycaret.classification import plot_model as plot_model_classification, pull as pull_classification
+from pycaret.regression import plot_model as plot_model_regression, pull as pull_regression
+from pycaret.clustering import plot_model as plot_model_clustering
 
 from src.classification_models import train_classification_model
 from src.regression_models import train_regression_models
-from src.clustering_models import train_and_plot_clustering_model  # Import the new clustering workflow
-
+from src.clustering_models import train_clustering_model, determine_optimal_clusters
 
 st.set_page_config(page_title="Premium ML App", layout="wide")
 st.title("Premium Machine Learning Application")
@@ -75,15 +73,23 @@ def train_and_save_best_model(df: pd.DataFrame, target: str, model_type: str,
             model, exp = train_classification_model(training_data, target)
             results_df = pull_classification()
         elif model_type == 'regression':
-            model, results_df = train_regression_models(training_data, target)  # Updated to unpack correctly
-            exp = None  # No experiment object for regression in this case
+            model, results_df = train_regression_models(training_data, target)
+            exp = None
         elif model_type == 'clustering':
-            st.write("### Training and visualizing clustering model...")
-            model, exp = train_and_plot_clustering_model(df[selected_features])
-            if model is None:
-                st.error("Failed to train clustering model.")
-                return
+            st.write("### Determine Optimal Number of Clusters")
+            determine_optimal_clusters(training_data)
+
+            selected_algorithm = st.session_state.get('selected_algorithm', 'kmeans')
+            num_clusters = st.session_state.get('num_clusters', 3)
+
+            model, exp, clustered_data = train_clustering_model(
+                training_data,
+                model_name=selected_algorithm,  # Pass the selected algorithm as model_name
+                num_clusters=num_clusters
+            )
+
             results_df = None
+
         else:
             st.error(f"Unknown model type: {model_type}")
             return
@@ -109,18 +115,17 @@ def train_and_save_best_model(df: pd.DataFrame, target: str, model_type: str,
                 if m in results_df:
                     additional_metrics[m] = results_df.at[results_df.index[0], m]
 
-            st.write("### Classification Performance Metrics")
-            st.write(f"**Accuracy:** {metric_value:.4f}")
-            for m, v in additional_metrics.items():
-                st.write(f"**{m}:** {v:.4f}")
+            st.write("### Classification Performance Charts")
+            plot_model_classification(model, plot='confusion_matrix', display_format='streamlit')
+            plot_model_classification(model, plot='auc', display_format='streamlit')
 
         elif model_type == 'regression':
-            st.write("### Regression Model Metrics")
+            st.write("### Improving Regression Model...")
             final_model = model
             if final_model.__class__.__name__ == 'DummyRegressor':
-                st.warning("Best model is DummyRegressor (baseline). No further metrics available.")
+                st.warning("Best model is DummyRegressor (baseline). No further plots available.")
                 return
-
+        
             metric_name = 'R2'
             metric_value = None
             if exp is not None:
@@ -130,9 +135,9 @@ def train_and_save_best_model(df: pd.DataFrame, target: str, model_type: str,
                         metric_value = df_results.loc[0, 'R2']
                 except Exception:
                     metric_value = None
-
+        
             st.session_state['r2_score'] = metric_value
-
+        
             for m in ['RMSE', 'MAE', 'MSE']:
                 if exp is not None:
                     try:
@@ -140,16 +145,41 @@ def train_and_save_best_model(df: pd.DataFrame, target: str, model_type: str,
                             additional_metrics[m] = df_results.loc[0, m]
                     except Exception:
                         pass
-
-            st.write(f"**R2 Score:** {metric_value:.4f}")
-            for m, v in additional_metrics.items():
-                st.write(f"**{m}:** {v:.4f}")
-
+                    
+            st.write("### Regression Performance Charts")
+            try:
+                # Residuals
+                fig_residuals = plot_model_regression(final_model, plot='residuals', display_format='matplotlib')
+                st.pyplot(fig_residuals)
+                plt.clf()
+        
+                # Prediction error
+                fig_pred_error = plot_model_regression(final_model, plot='prediction_error', display_format='matplotlib')
+                st.pyplot(fig_pred_error)
+                plt.clf()
+        
+                # Feature importance
+                st.subheader("Feature Importance")
+                fig_feat_imp = plot_model_regression(final_model, plot='feature', display_format='matplotlib')
+                st.pyplot(fig_feat_imp)
+                plt.clf()
+        
+            except Exception as e:
+                st.warning(f"Could not render regression plots: {e}")
+        
         elif model_type == 'clustering':
-            # Metrics for clustering can be added here if needed
-            pass
+            st.write("### Clustering Performance Charts")
+            for plot in ['silhouette', 'cluster']:
+                try:
+                    plot_model_clustering(model, plot=plot, display_format='streamlit')
+                except Exception as e:
+                    st.warning(f"Could not render clustering plot for {plot}: {e}")
 
-        model_name = f"{model_type.capitalize()} model on {dataset_name} at {datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        if model_type == 'clustering':
+            model_name = f"{model_type.capitalize()} ({selected_algorithm}) on {dataset_name} at {datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        else:
+            model_name = f"{model_type.capitalize()} model on {dataset_name} at {datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        
         database.save_model_metadata(
             name=model_name,
             dataset_name=dataset_name,
@@ -219,6 +249,13 @@ if data is not None:
     model_type = st.radio("Select Model Type", ['classification', 'regression', 'clustering'], key="model_radio")
     st.session_state['model_type'] = model_type
 
+    if model_type == 'clustering':
+        clustering_algorithms = ['kmeans', 'birch']
+        selected_algorithm = st.selectbox("Select Clustering Algorithm", clustering_algorithms, index=clustering_algorithms.index('kmeans'))
+        num_clusters = st.slider("Number of Clusters (for kmeans only)", 2, 15, 3)
+        st.session_state['selected_algorithm'] = selected_algorithm
+        st.session_state['num_clusters'] = num_clusters
+
     if st.button("Train & Compare Models"):
         if model_type != 'clustering' and not target:
             st.error("Please select a target column.")
@@ -232,7 +269,7 @@ if data is not None:
         eda.perform_eda(data)
 
     model = st.session_state['trained_model']
-    if model is not None:  # Use is not None to check for the model
+    if model is not None:
         st.header("Predict on New Data")
         input_df = predictions.input_new_data_dynamic(data, selected_features, form_key="new_data_form")
         if not input_df.empty:
@@ -257,4 +294,3 @@ if data is not None:
 
 else:
     st.info("Please upload a dataset or load one from the database to get started.")
-

@@ -1,94 +1,78 @@
-# clustering_models.py
 import streamlit as st
 import pandas as pd
-from pycaret.clustering import setup, create_model, assign_model
-
-def train_clustering_model(data: pd.DataFrame, session_id: int = 123):
-    try:
-        exp = setup(
-            data=data,
-            session_id=session_id,
-            html=False,
-            verbose=False
-        )
-        model = create_model('kmeans')
-        return model, exp
-    except Exception as e:
-        st.error(f"Clustering training error: {e}")
-        return None, None
-
-def predict_clustering(model, data: pd.DataFrame):
-    try:
-        clustered_data = assign_model(model, data)
-        return clustered_data
-    except Exception as e:
-        st.error(f"Clustering prediction error: {e}")
-        return None
-
-# clustering_workflow.py (new or inside clustering_models.py)
-
-import streamlit as st
-import pandas as pd
-import numpy as np
+from pycaret.clustering import setup, create_model, assign_model, get_config
+from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.decomposition import PCA
+
+import streamlit as st
+import pandas as pd
 from pycaret.clustering import setup, create_model, assign_model
+from sklearn.preprocessing import StandardScaler
 
-def train_and_plot_clustering_model(data: pd.DataFrame, session_id: int = 123):
+def train_clustering_model(data: pd.DataFrame, model_name='kmeans', num_clusters=3, session_id: int = 123):
     try:
-        # Drop non-feature columns
-        if 'CustomerID' in data.columns:
-            data = data.drop(columns=['CustomerID'])
+        print(data.dtypes)
+        scaler = StandardScaler()
+        scaled_data = scaler.fit_transform(data)
 
-        # Preprocess: encode non-numeric
-        non_numeric_cols = data.select_dtypes(exclude=['number']).columns.tolist()
-        if non_numeric_cols:
-            st.warning(f"Encoding non-numeric columns for clustering: {non_numeric_cols}")
-            data = pd.get_dummies(data, columns=non_numeric_cols, drop_first=True)
-
-        # Check for remaining non-numeric columns
-        remaining_non_numeric = data.select_dtypes(exclude=[np.number]).columns.tolist()
-        if remaining_non_numeric:
-            st.error(f"Non-numeric columns remain after encoding: {remaining_non_numeric}")
-            return None, None
-
-        if data.isnull().values.any():
-            st.error("Clustering data contains NaNs; clean data before training.")
-            return None, None
-
-        # Setup and train model
-        exp = setup(data=data, session_id=session_id, html=False, verbose=False)
-        model = create_model('kmeans')
-
-        # Predict clusters
-        clustered_data = assign_model(model, data)
-
-        # Plot clusters
-        _plot_clusters(clustered_data)
-
-        return model, exp
+        exp = setup(data=pd.DataFrame(scaled_data, columns=data.columns), html=False, verbose=False, session_id=session_id)
+        model = create_model(model_name, num_clusters=num_clusters)
+        clustered_data = assign_model(model)
+        return model, exp, clustered_data
 
     except Exception as e:
-        st.error(f"Clustering training and plotting error: {e}")
-        return None, None
+        st.error(f"Clustering training error: {e}")
+        return None, None, None
 
 
-def _plot_clusters(clustered_data: pd.DataFrame):
-    cluster_column = 'Cluster'  # default column added by assign_model
-    pca = PCA(n_components=2)
-    features = clustered_data.drop(columns=[cluster_column])
-    pca_result = pca.fit_transform(features)
+def determine_optimal_clusters(data: pd.DataFrame, max_k: int = 10):
+    """
+    Determine optimal number of clusters via the Elbow Method.
+    """
+    from sklearn.cluster import KMeans
 
-    plot_data = pd.DataFrame(pca_result, columns=['PCA1', 'PCA2'])
-    plot_data[cluster_column] = clustered_data[cluster_column].values
+    inertia = []
+    scaler = StandardScaler()
+    scaled_data = scaler.fit_transform(data)
+
+    for k in range(2, max_k + 1):
+        model = KMeans(n_clusters=k, random_state=123)
+        model.fit(scaled_data)
+        inertia.append(model.inertia_)
 
     plt.figure(figsize=(10, 6))
-    sns.scatterplot(data=plot_data, x='PCA1', y='PCA2', hue=cluster_column, palette='viridis', s=100)
-    plt.title('Clusters visualized with PCA')
-    plt.xlabel('PCA Component 1')
-    plt.ylabel('PCA Component 2')
-    plt.legend(title=cluster_column)
-    plt.grid(True)
+    plt.plot(range(2, max_k + 1), inertia, marker='o')
+    plt.title('Elbow Method - Optimal Number of Clusters')
+    plt.xlabel('Number of Clusters (k)')
+    plt.ylabel('Inertia')
+    plt.grid()
     st.pyplot(plt.gcf())
     plt.clf()
+
+def plot_cluster_summary(clustered_data: pd.DataFrame):
+    """
+    Display cluster summary: cluster sizes and feature means.
+    """
+    st.subheader("📊 Cluster Sizes")
+    st.write(clustered_data['Cluster'].value_counts().rename("Count").to_frame())
+
+    st.subheader("📈 Average values by Cluster")
+    mean_df = clustered_data.groupby('Cluster').mean(numeric_only=True)
+    st.dataframe(mean_df.style.format(precision=2))
+
+    if clustered_data.shape[1] >= 3:
+        st.subheader("📊 Cluster Distribution (First 2 Features)")
+        fig, ax = plt.subplots()
+        sns.scatterplot(
+            x=clustered_data.iloc[:, 0],
+            y=clustered_data.iloc[:, 1],
+            hue=clustered_data['Cluster'],
+            palette='Set2',
+            ax=ax
+        )
+        plt.xlabel(clustered_data.columns[0])
+        plt.ylabel(clustered_data.columns[1])
+        plt.title("Clusters (by first 2 features)")
+        st.pyplot(fig)
+        plt.clf()
