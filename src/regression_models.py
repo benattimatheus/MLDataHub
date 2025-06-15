@@ -81,6 +81,13 @@ def train_regression_models(
     if custom_feature_engineering is not None:
         df = custom_feature_engineering(df)
 
+    # Check if all required columns are present
+    required_columns = numeric_features + cat_features + text_features + [target]
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    if missing_columns:
+        st.error(f"Missing columns: {missing_columns}")
+        return None, None
+
     X = df.drop(columns=[target])
     y = df[target]
 

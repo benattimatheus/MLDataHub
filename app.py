@@ -2,16 +2,17 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from src import data_processing, eda, model_selection, predictions, database
+from src import data_processing, eda, predictions, database
 import matplotlib.pyplot as plt
-
-from pycaret.classification import plot_model as plot_model_classification, pull as pull_classification
-from pycaret.regression import plot_model as plot_model_regression, pull as pull_regression
-from pycaret.clustering import plot_model as plot_model_clustering
+import seaborn as sns
+import numpy as np
+from sklearn.decomposition import PCA
+from pycaret.classification import pull as pull_classification
 
 from src.classification_models import train_classification_model
 from src.regression_models import train_regression_models
-from src.clustering_models import train_clustering_model
+from src.clustering_models import train_and_plot_clustering_model  # Import the new clustering workflow
+
 
 st.set_page_config(page_title="Premium ML App", layout="wide")
 st.title("Premium Machine Learning Application")
@@ -77,7 +78,11 @@ def train_and_save_best_model(df: pd.DataFrame, target: str, model_type: str,
             model, results_df = train_regression_models(training_data, target)  # Updated to unpack correctly
             exp = None  # No experiment object for regression in this case
         elif model_type == 'clustering':
-            model, exp = train_clustering_model(training_data)
+            st.write("### Training and visualizing clustering model...")
+            model, exp = train_and_plot_clustering_model(df[selected_features])
+            if model is None:
+                st.error("Failed to train clustering model.")
+                return
             results_df = None
         else:
             st.error(f"Unknown model type: {model_type}")
@@ -104,17 +109,18 @@ def train_and_save_best_model(df: pd.DataFrame, target: str, model_type: str,
                 if m in results_df:
                     additional_metrics[m] = results_df.at[results_df.index[0], m]
 
-            st.write("### Classification Performance Charts")
-            plot_model_classification(model, plot='confusion_matrix', display_format='streamlit')
-            plot_model_classification(model, plot='auc', display_format='streamlit')
+            st.write("### Classification Performance Metrics")
+            st.write(f"**Accuracy:** {metric_value:.4f}")
+            for m, v in additional_metrics.items():
+                st.write(f"**{m}:** {v:.4f}")
 
         elif model_type == 'regression':
-            st.write("### Improving Regression Model...")
+            st.write("### Regression Model Metrics")
             final_model = model
             if final_model.__class__.__name__ == 'DummyRegressor':
-                st.warning("Best model is DummyRegressor (baseline). No further plots available.")
+                st.warning("Best model is DummyRegressor (baseline). No further metrics available.")
                 return
-        
+
             metric_name = 'R2'
             metric_value = None
             if exp is not None:
@@ -124,9 +130,9 @@ def train_and_save_best_model(df: pd.DataFrame, target: str, model_type: str,
                         metric_value = df_results.loc[0, 'R2']
                 except Exception:
                     metric_value = None
-        
+
             st.session_state['r2_score'] = metric_value
-        
+
             for m in ['RMSE', 'MAE', 'MSE']:
                 if exp is not None:
                     try:
@@ -134,35 +140,14 @@ def train_and_save_best_model(df: pd.DataFrame, target: str, model_type: str,
                             additional_metrics[m] = df_results.loc[0, m]
                     except Exception:
                         pass
-                    
-            st.write("### Regression Performance Charts")
-            try:
-                # Residuals
-                fig_residuals = plot_model_regression(final_model, plot='residuals', display_format='matplotlib')
-                st.pyplot(fig_residuals)
-                plt.clf()
-        
-                # Prediction error
-                fig_pred_error = plot_model_regression(final_model, plot='prediction_error', display_format='matplotlib')
-                st.pyplot(fig_pred_error)
-                plt.clf()
-        
-                # Feature importance
-                st.subheader("Feature Importance")
-                fig_feat_imp = plot_model_regression(final_model, plot='feature', display_format='matplotlib')
-                st.pyplot(fig_feat_imp)
-                plt.clf()
-        
-            except Exception as e:
-                st.warning(f"Could not render regression plots: {e}")
-        
+
+            st.write(f"**R2 Score:** {metric_value:.4f}")
+            for m, v in additional_metrics.items():
+                st.write(f"**{m}:** {v:.4f}")
+
         elif model_type == 'clustering':
-            st.write("### Clustering Performance Charts")
-            for plot in ['silhouette', 'cluster']:
-                plot_model_clustering(model, plot=plot, display_format='streamlit')
-                fig = plt.gcf()
-                st.pyplot(fig)
-                plt.clf()
+            # Metrics for clustering can be added here if needed
+            pass
 
         model_name = f"{model_type.capitalize()} model on {dataset_name} at {datetime.now().strftime('%Y%m%d_%H%M%S')}"
         database.save_model_metadata(
@@ -272,3 +257,4 @@ if data is not None:
 
 else:
     st.info("Please upload a dataset or load one from the database to get started.")
+
