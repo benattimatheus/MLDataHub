@@ -53,7 +53,7 @@ def predict_with_model(model: Any, new_data: pd.DataFrame, model_type: str) -> D
             if pd.api.types.is_numeric_dtype(new_data_cleaned[col]):
                 new_data_cleaned[col] = pd.to_numeric(new_data_cleaned[col], errors='coerce')
 
-        if model_type == 'classification':
+        if model_type == 'classificação':
             # Exibe mapeamento índice → nome da classe (se existir)
             if hasattr(model, "classes_"):
                 st.write("Class index to name mapping:")

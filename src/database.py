@@ -7,14 +7,13 @@ from sqlalchemy.orm import sessionmaker
 from typing import Optional
 from datetime import datetime
 import logging
+import streamlit as st  # Para relatórios de erro no contexto do Streamlit, se necessário
 
-import streamlit as st  # For error reporting in Streamlit context if needed
-
-# Configure logging for debugging and errors
+# Configurar logging para depuração e erros
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Default database file connection URL (can be changed to any supported SQLAlchemy URI)
+# URL de conexão padrão do banco de dados (pode ser alterada para qualquer URI suportada pelo SQLAlchemy)
 DATABASE_URL = "sqlite:///ml_app.db"
 
 _engine = None
@@ -22,63 +21,63 @@ _Session = None
 
 def init_engine(database_url: str = DATABASE_URL):
     """
-    Initialize and return the SQLAlchemy engine and sessionmaker.
-    Only creates one engine/session per app lifecycle.
+    Inicializa e retorna o engine do SQLAlchemy e o sessionmaker.
+    Apenas cria um engine/sessão por ciclo de vida do aplicativo.
     """
     global _engine, _Session
     if _engine is None:
         _engine = create_engine(database_url, echo=False, future=True)
         _Session = sessionmaker(bind=_engine)
-        logger.info(f"Database engine created with url: {database_url}")
+        logger.info(f"Engine do banco de dados criado com a URL: {database_url}")
     return _engine, _Session
 
 def save_dataframe(df: pd.DataFrame, table_name: str, if_exists: str = 'replace') -> bool:
     """
-    Save a Pandas DataFrame to a SQL table.
+    Salva um DataFrame do Pandas em uma tabela SQL.
 
     Args:
-        df: DataFrame to save.
-        table_name: Name of the SQL table.
-        if_exists: Action if table exists: 'fail', 'replace', or 'append'.
+        df: DataFrame a ser salvo.
+        table_name: Nome da tabela SQL.
+        if_exists: Ação se a tabela existir: 'fail', 'replace' ou 'append'.
 
     Returns:
-        True if saved successfully, False otherwise.
+        True se salvo com sucesso, False caso contrário.
     """
     engine, _ = init_engine()
     try:
         df.to_sql(table_name, con=engine, if_exists=if_exists, index=False)
-        logger.info(f"Saved DataFrame to '{table_name}' with shape {df.shape}")
+        logger.info(f"DataFrame salvo em '{table_name}' com forma {df.shape}")
         return True
     except SQLAlchemyError as e:
-        logger.error(f"Failed to save DataFrame to '{table_name}': {e}")
+        logger.error(f"Falha ao salvar DataFrame em '{table_name}': {e}")
         if st:
-            st.error(f"Database save error: {e}")
+            st.error(f"Erro ao salvar no banco de dados: {e}")
         return False
 
 def load_dataframe(table_name: str) -> Optional[pd.DataFrame]:
     """
-    Load a SQL table into a Pandas DataFrame.
+    Carrega uma tabela SQL em um DataFrame do Pandas.
 
     Args:
-        table_name: Name of the SQL table to load.
+        table_name: Nome da tabela SQL a ser carregada.
 
     Returns:
-        DataFrame on success, None on failure.
+        DataFrame em caso de sucesso, None em caso de falha.
     """
     engine, _ = init_engine()
     try:
         df = pd.read_sql_table(table_name, con=engine)
-        logger.info(f"Loaded table '{table_name}' with shape {df.shape}")
+        logger.info(f"Tabela '{table_name}' carregada com forma {df.shape}")
         return df
     except Exception as e:
-        logger.error(f"Failed to load table '{table_name}': {e}")
+        logger.error(f"Falha ao carregar a tabela '{table_name}': {e}")
         if st:
-            st.error(f"Database load error: {e}")
+            st.error(f"Erro ao carregar tabela do banco de dados: {e}")
         return None
 
 def initialize_tables():
     """
-    Create required metadata tables for datasets and models if they do not exist.
+    Cria tabelas de metadados necessárias para conjuntos de dados e modelos, se não existirem.
     """
     engine, _ = init_engine()
     metadata = MetaData()
@@ -88,7 +87,7 @@ def initialize_tables():
         Column('id', Integer, primary_key=True, autoincrement=True),
         Column('name', String(255), nullable=False, unique=True),
         Column('description', Text, nullable=True),
-        Column('type', String(50), nullable=False),  # e.g., regression/classification/clustering
+        Column('type', String(50), nullable=False),  # e.g., regressão/classificação/clusterização
         Column('num_rows', Integer, nullable=True),
         Column('num_cols', Integer, nullable=True),
         Column('created_at', DateTime, nullable=False),
@@ -108,11 +107,11 @@ def initialize_tables():
 
     try:
         metadata.create_all(engine)
-        logger.info("Initialized database tables for datasets and models")
+        logger.info("Tabelas do banco de dados inicializadas para conjuntos de dados e modelos")
     except SQLAlchemyError as e:
-        logger.error(f"Error initializing tables: {e}")
+        logger.error(f"Erro ao inicializar tabelas: {e}")
         if st:
-            st.error(f"Database initialization error: {e}")
+            st.error(f"Erro na inicialização do banco de dados: {e}")
 
 def save_dataset_metadata(
     name: str,
@@ -123,18 +122,18 @@ def save_dataset_metadata(
     created_at: Optional[datetime] = None
 ) -> bool:
     """
-    Save metadata info about a dataset.
+    Salva informações de metadados sobre um conjunto de dados.
 
     Args:
-        name: Name identifier for dataset.
-        ds_type: Dataset type, e.g., regression, classification, clustering.
-        num_rows: Number of rows.
-        num_cols: Number of columns.
-        description: Optional description text.
-        created_at: Timestamp, defaults to now.
+        name: Identificador do nome do conjunto de dados.
+        ds_type: Tipo de conjunto de dados, e.g., regressão, classificação, clusterização.
+        num_rows: Número de linhas.
+        num_cols: Número de colunas.
+        description: Texto de descrição opcional.
+        created_at: Timestamp, padrão é agora.
 
     Returns:
-        True if saved successfully, else False.
+        True se salvo com sucesso, caso contrário False.
     """
     engine, Session = init_engine()
     session = Session()
@@ -155,17 +154,17 @@ def save_dataset_metadata(
         )
         session.execute(ins)
         session.commit()
-        logger.info(f"Dataset metadata '{name}' saved")
+        logger.info(f"Metadados do conjunto de dados '{name}' salvos")
         return True
     except IntegrityError:
         session.rollback()
-        logger.warning(f"Dataset metadata '{name}' already exists")
+        logger.warning(f"Metadados do conjunto de dados '{name}' já existem")
         return False
     except SQLAlchemyError as e:
         session.rollback()
-        logger.error(f"Error saving dataset metadata: {e}")
+        logger.error(f"Erro ao salvar metadados do conjunto de dados: {e}")
         if st:
-            st.error(f"Dataset metadata save error: {e}")
+            st.error(f"Erro ao salvar metadados do conjunto de dados: {e}")
         return False
     finally:
         session.close()
@@ -180,19 +179,19 @@ def save_model_metadata(
     created_at: Optional[datetime] = None
 ) -> bool:
     """
-    Save metadata info about a trained model.
+    Salva informações de metadados sobre um modelo treinado.
 
     Args:
-        name: Model name/identifier.
-        dataset_name: Associated dataset name.
-        model_type: Type of model (regression/classification/clustering).
-        metric_name: Performance metric name (e.g., 'Accuracy', 'R2').
-        metric_value: Metric value.
-        description: Optional description.
-        created_at: Timestamp, defaults to now.
+        name: Nome/identificador do modelo.
+        dataset_name: Nome do conjunto de dados associado.
+        model_type: Tipo de modelo (regressão/classificação/clusterização).
+        metric_name: Nome da métrica de desempenho (e.g., 'Acurácia', 'R²').
+        metric_value: Valor da métrica.
+        description: Descrição opcional.
+        created_at: Timestamp, padrão é agora.
 
     Returns:
-        True if saved successfully, else False.
+        True se salvo com sucesso, caso contrário False.
     """
     engine, Session = init_engine()
     session = Session()
@@ -214,55 +213,55 @@ def save_model_metadata(
         )
         session.execute(ins)
         session.commit()
-        logger.info(f"Model metadata '{name}' saved")
+        logger.info(f"Metadados do modelo '{name}' salvos")
         return True
     except IntegrityError:
         session.rollback()
-        logger.warning(f"Model metadata '{name}' already exists")
+        logger.warning(f"Metadados do modelo '{name}' já existem")
         return False
     except SQLAlchemyError as e:
         session.rollback()
-        logger.error(f"Error saving model metadata: {e}")
+        logger.error(f"Erro ao salvar metadados do modelo: {e}")
         if st:
-            st.error(f"Model metadata save error: {e}")
+            st.error(f"Erro ao salvar metadados do modelo: {e}")
         return False
     finally:
         session.close()
 
 def get_all_dataset_metadata() -> Optional[pd.DataFrame]:
     """
-    Load all dataset metadata.
+    Carrega todos os metadados do conjunto de dados.
 
     Returns:
-        DataFrame of datasets metadata or None on error.
+        DataFrame dos metadados dos conjuntos de dados ou None em caso de erro.
     """
     engine, _ = init_engine()
     try:
         query = "SELECT * FROM datasets ORDER BY created_at DESC"
         df = pd.read_sql(query, con=engine)
-        logger.info(f"Loaded dataset metadata, records: {len(df)}")
+        logger.info(f"Metadados do conjunto de dados carregados, registros: {len(df)}")
         return df
     except Exception as e:
-        logger.error(f"Failed to load dataset metadata: {e}")
+        logger.error(f"Falha ao carregar metadados do conjunto de dados: {e}")
         if st:
-            st.error(f"Load dataset metadata error: {e}")
+            st.error(f"Erro ao carregar metadados do conjunto de dados: {e}")
         return None
 
 def get_all_model_metadata() -> Optional[pd.DataFrame]:
     """
-    Load all model metadata.
+    Carrega todos os metadados do modelo.
 
     Returns:
-        DataFrame of models metadata or None on error.
+        DataFrame dos metadados dos modelos ou None em caso de erro.
     """
     engine, _ = init_engine()
     try:
         query = "SELECT * FROM models ORDER BY created_at DESC"
         df = pd.read_sql(query, con=engine)
-        logger.info(f"Loaded model metadata, records: {len(df)}")
+        logger.info(f"Metadados do modelo carregados, registros: {len(df)}")
         return df
     except Exception as e:
-        logger.error(f"Failed to load model metadata: {e}")
+        logger.error(f"Falha ao carregar metadados do modelo: {e}")
         if st:
-            st.error(f"Load model metadata error: {e}")
+            st.error(f"Erro ao carregar metadados do modelo: {e}")
         return None
