@@ -263,8 +263,9 @@ if data is not None:
             if preds:
                 st.subheader("Prediction Results")
                 if model_type == 'classification':
-                    predicted_class = preds['predicted_class'].values[0]  # Access the predicted class
-                    confidence = preds['probability'].values[0]  # Access the probability
+                    predicted_class = preds['predicted_class']
+  # Access the predicted class
+                    confidence = preds['probability']  # Access the probability
                     st.write(f"**Predicted Class:** {predicted_class}")  # Display the predicted class
                     st.write(f"**Confidence:** {confidence * 100:.2f}%")  # Display the confidence
                 elif model_type == 'regression':
